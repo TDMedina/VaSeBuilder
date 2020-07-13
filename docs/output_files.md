@@ -131,11 +131,6 @@ Contains the sample IDs used in the run with their corresponding argon2 encoding
 sample1	$argon2i$v=19$m=1024,t=2,p=8$E5m6Ls6LAU6Z5exxJKh8bw$83SzGyAbzm7kl6b0Nn95Fg
 sample2	$argon2i$v=19$m=1024,t=2,p=8$0NpJguOem97u3dlvE0IuOg$CHcowFnD7SdozzuFXRONbA
 ```
-
-Note that the `Argon2Encoding` field contains full argon2 parameter encodings. The actual sample ID hash value can be found at the end of this string, after the final `$`. From the example above, the actual hash values that would be found in an output BAM or VCF would be the bold portion:
-
-* $argon2i$v=19$m=1024,t=2,p=8$E5m6Ls6LAU6Z5exxJKh8bw$__83SzGyAbzm7kl6b0Nn95Fg__
-* $argon2i$v=19$m=1024,t=2,p=8$0NpJguOem97u3dlvE0IuOg$__CHcowFnD7SdozzuFXRONbA__
 <br />
 
 
