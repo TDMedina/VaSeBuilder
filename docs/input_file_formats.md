@@ -15,7 +15,7 @@ directory with the same name, i.e.: sample.bam & sample.bam.bai
 
 ### Genome reference
 As VaSeBuilder can work with both BAM and CRAM alignment files, users need to supply a genome reference in fasta format for each VaSeBuilder run. This genome reference should be the same as the reference used during the mapping process to create the acceptor and donor alignment files.
-
+<br /><br />
 
 ### Donor FastQ list file
 A donor fastq list file needs to be provided when running VaSeBuilder AC-mode. Currently (September 23rd, 2019) this 
@@ -23,9 +23,9 @@ file requires two columns without a header. The first column should contain the 
  the paths to R2 files:
 
 ```
-/path/to/sample1_R1.fq &emsp;/path/to/sample1_R2.fq
-/path/to/sample2_R1.fq &emsp;/path/to/sample2_R2.fq
-/path/to/sample3_R1.fq &emsp;/path/to/sample3_R2.fq
+/path/to/sample1_R1.fq	/path/to/sample1_R2.fq  
+/path/to/sample2_R1.fq	/path/to/sample2_R2.fq  
+/path/to/sample3_R1.fq	/path/to/sample3_R2.fq  
 ```
 
 Each row in this file therefore represents a single sample.
@@ -39,8 +39,9 @@ Variants not specified in the variant list will therefore be skipped.
 The variant list file needs at least three columns: sample name/identifier, chromosome name, variant position:
 
 ```
-Sample1 &emsp;1 &emsp;101  
-Sample2 &emsp;2 &emsp;202  
+SampleId	VariantId	Pos	Ref	Alt	Optional1	Optional2
+Sample1	1	101	C	A	
+Sample2	2	202	G	T	
 ```
 <br />
 
@@ -49,13 +50,12 @@ Sample2 &emsp;2 &emsp;202
 
 
 ### Variant context file
-A VaSeBuilder variant context file can serve as an input file when running AC, DC, FC or PC mode. Please see the output 
-files description for the variant context file for it's structure.
+A VaSeBuilder variant context file can serve as an input file for both ```VaSeBuilder BuildSpikeIns```, for which it is optional, and ```VaSeBuilder AssembleValidationSet```, for which it is required. The format of the variant context file is further described [here](output_files.md#variant-context-file)
 <br /><br />
 
 
 ### Argument file
-Argument files can be very useful to run VaSeBuilder. Argument files make it easier to document and redo VaSeBuilder runs. In an argument file, each line should be a command line parameter followed by one or more values (depending on the parameter). Lines starting with a '#' will be ignored. 
+[Argument files](argfiles.md) can be very useful to run VaSeBuilder. Argument files make it easier to document and redo VaSeBuilder runs. In an argument file, each line should be a command line parameter followed by one or more values (depending on the parameter). Lines starting with a '#' will be ignored. 
 <br />
 ```
 BuildValidationSet  
