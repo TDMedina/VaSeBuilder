@@ -1,12 +1,12 @@
 """VCF Comparison Tool.
-
 Created on Thu Oct 24 11:18:19 2019
-
 @author: medinatd
 """
 import gzip
 import io
 import sys
+import os
+import argparse
 
 
 class BED:
@@ -449,6 +449,51 @@ class VCF_Comparison:
         return relatives
 
 
+def get_params():
+    """Define, receive and return command line parameter values
+
+    Returns
+    -------
+    dict
+        Command line parameter values
+    """
+    ygor_args = argparse.ArgumentParser()
+    ygor_args.add_argument("-1", "--vcf1", dest="vcf1", required=True, type=str, help="Path to the first VCF file")
+    ygor_args.add_argument("-2", "--vcf2", dest="vcf2", required=True, type=str, help="Path to the second VCF file")
+    ygor_args.add_argument("-o", "--outdir", dest="outdir", required=True, type=str, help="Path to folder to write output files to")
+    ygor_args.add_argument("-op", "--out-prefix", dest="outprefix", type=str, help="Prefix to use for output files")
+    ygor_args.add_argument("-s", "--summary", dest="summary", action="store_true", type=bool, help="Display the comparison summary?")
+    return vars(ygor_args.parse_args())
+
+
+def params_ok(ygor_arg_values):
+    """Check whether the required parameters are ok.
+
+    Parameters
+    ----------
+    ygor_arg_values : dict
+        Ygor command line parameter values.
+
+    Returns
+    -------
+    params_ok : bool
+        True if required parameters are ok, False if not.
+    """
+    vcf_ext = (".vcf.gz", ".VCF.GZ")
+    params_ok = True
+    if not os.path.isfile(ygor_arg_values["vcf1"]) and not os.path.isfile(ygor_arg_values["vcf2"]):
+        params_ok = False
+        print("One (or both) of the supplied VCF files does not exist")
+    else:
+        if not ygor_arg_values["vcf1"].endswith(vcf_ext) or not ygor_arg_values["vcf2"].endswith(vcf_ext):
+            params_ok = False
+            print("One (or both) of the supplied is not a gzipped VCF file")
+    if not os.path.isdir(ygor_arg_values["outdir"]):
+        params_ok = False
+        print("The supllied output directory does not exist")
+    return params_ok
+
+
 def main(vcf1, vcf2, allo_check=False):
     vcf1_obj = VCF(vcf1)
     vcf2_obj = VCF(vcf2)
@@ -463,8 +508,177 @@ def main(vcf1, vcf2, allo_check=False):
     else:
         comparison.compare_all()
     print(comparison.summary_count())
+    print(comparison.unshared_filter_vars)
     return comparison
 
 
+def main2(allo_check=False):
+    """Perform the main comparison functionality.
+
+    Parameters
+    ----------
+    allo_check : bool
+        Perform all checks if True, only position, genotype and filter if False.
+    """
+    ygor_params = get_params()
+    if params_ok(ygor_params):
+        vcf1_obj = VCF(ygor_params["vcf1"])
+        vcf2_obj = VCF(ygor_params["vcf2"])
+        vcf1_obj.read_from_file()
+        vcf2_obj.read_from_file()
+
+        comparison = VCF_Comparison(vcf1_obj, vcf2_obj)
+        if not allo_check:
+            comparison.compare_by_pos()
+            comparison.compare_by_genotypes(comparison.shared_pos_vars)
+            comparison.compare_by_filter()
+        else:
+            comparison.compare_all()
+
+        if ygor_params["summary"]:
+            print(comparison.summary_count())
+
+        outputdir = ygor_params["outdir"]
+        # Start writing shared variant output files
+        write_comparison_data(comparison.shared_pos_vars, f"{outputdir}/shared_pos_vars")
+        write_comparison_data(comparison.shared_genotype_vars, f"{outputdir}/shared_genotype_vars")
+        write_comparison_data(comparison.shared_filter_vars, f"{outputdir}/shared_filter_vars")
+
+        # Start writing unshared variant output files
+        write_comparison_data(comparison.unshared_pos_vars, f"{outputdir}/unshared_pos_vars")
+        write_comparison_data(comparison.unshared_genotype_vars, f"{outputdir}/unshared_genotype_vars")
+        write_comparison_data(comparison.unshared_filter_vars, f"{outputdir}/unshared_filter_vars")
+
+        # Start writing the differences in genotype and filter values between the VCF1 and VCF2 variant on the same position
+        write_differences(f"{outputdir}/genotype_differences.txt", comparison.unshared_genotype_vars, "genotype")
+        write_differences(f"{outputdir}/filter_differences.txt", comparison.unshared_filter_vars, "filter")
+
+        return comparison
+    else:
+        print("Not all parameters are ok :(")
+        return None
+
+
+def write_comparison_data(variantdata, outputlocation):
+    """Write shared/unshared variants
+
+    Parameters
+    ----------
+    variantdata : dict
+        Shared/Unshared variant data for the two VCF files
+    outputlocation : str
+        Directory to write output files to
+    """
+    vcf1_out = f"{outputlocation}_vcf1.txt"
+    vcf2_out = f"{outputlocation}_vcf2.txt"
+    write_comparison_outfile(variantdata["VCF1"], vcf1_out)
+    write_comparison_outfile(variantdata["VCF2"], vcf2_out)
+
+
+def write_comparison_outfile(singlevars, outfilelocation):
+    """Write shared/unshared comparison variants for VCF1 or VCF2.
+
+    Parameters
+    ----------
+    singlevars : list of str
+        Shared/Unshared variants for a single (VCF1/VCF2) vcf file
+    outfilelocation : str
+        Path to write output file to
+    """
+    try:
+        with open(outfilelocation, 'w') as outfile:
+            for variantline in singlevars:
+                outfile.write(f"{variantline}\n")
+    except IOError:
+        print(f"Could not write data to {outfilelocation}")
+
+
+def write_differences(outfileloc, differing_variants, difference_field):
+    """Write variants that differ between VCF1 and VCF2
+
+    Parameters
+    ----------
+    outfileloc : str
+        Path to write differences output file to
+    differing_variants : dict
+        Variants for VCF1 and VCF2 that differ by genotype or filter
+    difference_field : int
+        Which variant data field to select
+
+    Returns
+    -------
+    write_success : bool
+        True if the differences file has been succesfully written, False if not
+    """
+    write_success = False
+    header_field = get_difference_field(difference_field)
+    vcf1_vars = differing_variants["VCF1"]
+    vcf2_vars = differing_variants["VCF2"]
+    num_of_iterations = min([len(vcf1_vars), len(vcf2_vars)])
+
+    try:
+        with open(outfileloc, 'w') as diff_file:
+            diff_file.write(f"Chrom\tPos\tIdentifier\t{difference_field.title()}\n")
+
+            # Start writing the differences to the outoput file
+            for noi in range(0, num_of_iterations):
+                vcf1_variant = vcf1_vars[noi][0].__repr__()
+                vcf2_variant = vcf2_vars[noi][0].__repr__()
+                difference_line = get_difference_line(vcf1_variant, vcf2_variant, header_field)
+                diff_file.write(f"{difference_line}\n")
+        write_success = True
+    except IOError:
+        print(f"Could not write differences to {outfileloc}")
+    finally:
+        return write_success
+
+
+def get_difference_field(differencetype):
+    """Determine which VCF line field to write to differences output file.
+
+    Parameters
+    ----------
+    differencetype : str
+        Which difference to write (filter or genotype)
+
+    Returns
+    -------
+    int
+        Field number to write to differencs output file
+    """
+    difference_types = ["filter", "genotype"]
+    if differencetype == "filter":
+        return 6
+    elif differencetype == "genotype":
+        return 4
+
+
+def get_difference_line(vcf1_variant, vcf2_variant, diff_field):
+    """Form andf return the fileline to write to the difference output file.   
+
+    Parameters
+    ----------
+    vcf1_variant : str
+        Variant line for the variant in VCF1
+    vcf2_variant : str
+        Variant line for the variant in VCF2
+    diff_field
+        Index of which variant data element to select
+
+    Returns
+    -------
+    str or None
+        Difference file line to write or None if the variants are not the same
+    """
+    vcf1_variantdata = vcf1_variant.split("\t")
+    vcf2_variantdata = vcf2_variant.split("\t")
+
+    if vcf1_variantdata[0] == vcf2_variantdata[0] and vcf1_variantdata[1] == vcf2_variantdata[1]:
+        return f"{vcf1_variantdata[0]}\t{vcf1_variantdata[1]}\t{vcf1_variantdata[2]}\t{vcf1_variantdata[diff_field]}|{vcf2_variantdata[diff_field]}"
+    else:
+        return None
+
+
 if __name__ == "__main__":
-    Comparator = main(sys.argv[1], sys.argv[2])
+    # Comparator = main(sys.argv[1], sys.argv[2])
+    Comparator = main2()
