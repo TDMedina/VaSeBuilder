@@ -375,11 +375,10 @@ class VCF_Comparison:
     def summary_count(self):
         total = self.count_variants()
         if 0 in total:
-            print(f"Summary:\tVCF1\tVCF2\n"
-                  f"Total calls:\t{total[0]}\t{total[1]}\n"
-                  f"\n"
-                  f"Empty VCF found. No comparison performed.")
-            return
+            return (f"Summary:\tVCF1\tVCF2\n"
+                    f"Total calls:\t{total[0]}\t{total[1]}\n"
+                    f"\n"
+                    f"Empty VCF found. No comparison performed.")
         pos_match = self.count_shared_by_pos()
         pos_diff = self.count_unique_by_pos()
         allele_match = self.count_shared_by_alleles()
@@ -479,18 +478,19 @@ def params_ok(ygor_arg_values):
     params_ok : bool
         True if required parameters are ok, False if not.
     """
-    vcf_ext = (".vcf.gz", ".VCF.GZ")
+    vcf_ext = ".vcf.gz"
     params_ok = True
-    if not os.path.isfile(ygor_arg_values["vcf1"]) and not os.path.isfile(ygor_arg_values["vcf2"]):
-        params_ok = False
-        print("One (or both) of the supplied VCF files does not exist")
-    else:
-        if not ygor_arg_values["vcf1"].endswith(vcf_ext) or not ygor_arg_values["vcf2"].endswith(vcf_ext):
+    for vcf in [ygor_arg_values["vcf1"], ygor_arg_values["vcf2"]]:
+        if not os.path.isfile(vcf):
+            print(f"File {vcf} does not exist.")
             params_ok = False
-            print("One (or both) of the supplied is not a gzipped VCF file")
-    if not os.path.isdir(ygor_arg_values["outdir"]):
+            continue
+        if not vcf.lower().endswith(vcf_ext):
+            print(f"File {vcf} does not have a VCF.gz file extension.")
+            params_ok = False
+    if not os.ispath.isdir(ygor_arg_values["outdir"]):
+        print(f"Output directory {ygor_arg_values['outdir']} does not exist.")
         params_ok = False
-        print("The supllied output directory does not exist")
     return params_ok
 
 
@@ -521,42 +521,40 @@ def main2(allo_check=False):
         Perform all checks if True, only position, genotype and filter if False.
     """
     ygor_params = get_params()
-    if params_ok(ygor_params):
-        vcf1_obj = VCF(ygor_params["vcf1"])
-        vcf2_obj = VCF(ygor_params["vcf2"])
-        vcf1_obj.read_from_file()
-        vcf2_obj.read_from_file()
+    if not params_ok(ygor_params):
+        return
+    vcf1_obj = VCF(ygor_params["vcf1"])
+    vcf2_obj = VCF(ygor_params["vcf2"])
+    vcf1_obj.read_from_file()
+    vcf2_obj.read_from_file()
 
-        comparison = VCF_Comparison(vcf1_obj, vcf2_obj)
-        if not allo_check:
-            comparison.compare_by_pos()
-            comparison.compare_by_genotypes(comparison.shared_pos_vars)
-            comparison.compare_by_filter()
-        else:
-            comparison.compare_all()
-
-        if ygor_params["summary"]:
-            print(comparison.summary_count())
-
-        outputdir = ygor_params["outdir"]
-        # Start writing shared variant output files
-        write_comparison_data(comparison.shared_pos_vars, f"{outputdir}/shared_pos_vars")
-        write_comparison_data(comparison.shared_genotype_vars, f"{outputdir}/shared_genotype_vars")
-        write_comparison_data(comparison.shared_filter_vars, f"{outputdir}/shared_filter_vars")
-
-        # Start writing unshared variant output files
-        write_comparison_data(comparison.unshared_pos_vars, f"{outputdir}/unshared_pos_vars")
-        write_comparison_data(comparison.unshared_genotype_vars, f"{outputdir}/unshared_genotype_vars")
-        write_comparison_data(comparison.unshared_filter_vars, f"{outputdir}/unshared_filter_vars")
-
-        # Start writing the differences in genotype and filter values between the VCF1 and VCF2 variant on the same position
-        write_differences(f"{outputdir}/genotype_differences.txt", comparison.unshared_genotype_vars, "genotype")
-        write_differences(f"{outputdir}/filter_differences.txt", comparison.unshared_filter_vars, "filter")
-
-        return comparison
+    comparison = VCF_Comparison(vcf1_obj, vcf2_obj)
+    if not allo_check:
+        comparison.compare_by_pos()
+        comparison.compare_by_genotypes(comparison.shared_pos_vars)
+        comparison.compare_by_filter()
     else:
-        print("Not all parameters are ok :(")
-        return None
+        comparison.compare_all()
+
+    if ygor_params["summary"]:
+        print(comparison.summary_count())
+
+    outputdir = ygor_params["outdir"]
+    # Start writing shared variant output files
+    write_comparison_data(comparison.shared_pos_vars, f"{outputdir}/shared_pos_vars")
+    write_comparison_data(comparison.shared_genotype_vars, f"{outputdir}/shared_genotype_vars")
+    write_comparison_data(comparison.shared_filter_vars, f"{outputdir}/shared_filter_vars")
+
+    # Start writing unshared variant output files
+    write_comparison_data(comparison.unshared_pos_vars, f"{outputdir}/unshared_pos_vars")
+    write_comparison_data(comparison.unshared_genotype_vars, f"{outputdir}/unshared_genotype_vars")
+    write_comparison_data(comparison.unshared_filter_vars, f"{outputdir}/unshared_filter_vars")
+
+    # Start writing the differences in genotype and filter values between the VCF1 and VCF2 variant on the same position
+    write_differences(f"{outputdir}/genotype_differences.txt", comparison.unshared_genotype_vars, "genotype")
+    write_differences(f"{outputdir}/filter_differences.txt", comparison.unshared_filter_vars, "filter")
+
+    return comparison
 
 
 def write_comparison_data(variantdata, outputlocation):
